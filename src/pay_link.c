@@ -3,8 +3,17 @@
 #include "recomputils.h"
 #include "recompconfig.h"
 #include "eztr_api.h"
+#include "rando_exports.h"
+#include "overlays/actors/ovl_En_Elf/z_en_elf.h"
 
-EZTR_DEFINE_CUSTOM_MSG_HANDLE(bankreward);
+#define LOCATION_BANK_200_REWARD 0x000008
+#define LOCATION_BANK_500_REWARD 0x080177
+#define LOCATION_BANK_1000_REWARD 0x070177
+
+void OfferBankReward(EnElf* this, PlayState* play);
+
+EnElfActionFunc savedTatlActionFunc;
+
 EZTR_DEFINE_CUSTOM_MSG_HANDLE(mobilebank);
 
 typedef enum {
@@ -15,161 +24,176 @@ typedef enum {
 } MobilebankState;
 static MobilebankState mobilebankState = MOBILEBANK_NONE;
 
-static bool isBankreward = false;
-static bool lastFrameBankreward = false;
-static u16 bankrewardTimer = 0;
+bool awardChecked;
+static bool isMobilebank = false;
+static bool lastFrameMobilebank = false;
+static u16 mobilebankTimer = 0;
+s16 previousBankValue;
 
-void Bankreward_Start(PlayState* play) {
+void Mobilebank_Start(PlayState* play) {
     Player* player = GET_PLAYER(play);
     
     if (
-        isBankreward ||
+        isMobilebank ||
         Message_GetState(&play->msgCtx) != TEXT_STATE_NONE ||
         player->tatlTextId != 0 ||
         play->transitionTrigger != TRANS_TRIGGER_OFF
     ) return;
 
-    isBankreward = true;
-    bankrewardTimer = (20 * 30); // Stays for 30 seconds
-    lastFrameBankreward = false;
+    isMobilebank = true;
+    mobilebankTimer = (20 * 30); // Stays for 30 seconds
+    lastFrameMobilebank = false;
 }
 
 RECOMP_HOOK("Play_Update")
-void Bankreward_Update(PlayState* play) {
-    if (!isBankreward) {
+void Mobilebank_Update(PlayState* play) {
+    if (!isMobilebank) {
         return;
     };
 
     Player* player = GET_PLAYER(play);
 
-    if (bankrewardTimer > 0)
-        bankrewardTimer--;
+    if (mobilebankTimer > 0)
+        mobilebankTimer--;
 
-    if (bankrewardTimer == 0) {
-        isBankreward = false;
+    if (mobilebankTimer == 0) {
+        isMobilebank = false;
         return;
     }
 
-    if (isBankreward) {
-        bool isInBankreward = play->msgCtx.currentTextId == EZTR_GET_ID_H(bankreward);
+    if (isMobilebank) {
+        bool isInMobilebank = play->msgCtx.currentTextId == EZTR_GET_ID_H(mobilebank);
 
-        if (lastFrameBankreward && !isInBankreward) {
-            // The message has been closed
-            isBankreward = false;
-            return;
+        if (lastFrameMobilebank && !isInMobilebank) {
+            isMobilebank = false;
+            return;    
+        } else if (!lastFrameMobilebank && !isInMobilebank) {
+            player->tatlTextId = EZTR_GET_ID_H(mobilebank);
+        } else if (!lastFrameMobilebank && isInMobilebank) {
+            EnElf* tatl = ((EnElf*)player->tatlActor);
+            savedTatlActionFunc = tatl->actionFunc; // save actionFunc
+            tatl->actionFunc = OfferBankReward;
         }
-
-        else if (!lastFrameBankreward && !isInBankreward) {
-            player->tatlTextId = EZTR_GET_ID_H(bankreward);
-        }
-
-        lastFrameBankreward = isInBankreward;
+        lastFrameMobilebank = isInMobilebank;
     }
 }
 
 RECOMP_HOOK_RETURN("Rupees_ChangeBy")
 void afterRupees_ChangeBy() {
-    //recomp_printf("rupee accumulator: %d\n", gSaveContext.rupeeAccumulator);
+    recomp_printf("rupee accumulator: %d\n", gSaveContext.rupeeAccumulator);
 
-    if (gSaveContext.rupeeAccumulator > 0 && ((gSaveContext.save.saveInfo.playerData.rupees + gSaveContext.rupeeAccumulator) > CUR_CAPACITY(UPG_WALLET))) {
-        //recomp_printf("overflow\n");
+    if ((gSaveContext.rupeeAccumulator > 0) && ((gSaveContext.save.saveInfo.playerData.rupees + gSaveContext.rupeeAccumulator) > CUR_CAPACITY(UPG_WALLET))) {
+        recomp_printf("overflow\n");
 
         u32 overflow = (gSaveContext.save.saveInfo.playerData.rupees + gSaveContext.rupeeAccumulator) - CUR_CAPACITY(UPG_WALLET);
 
         gSaveContext.rupeeAccumulator -= overflow;
-        //recomp_printf("remainder %d\n", overflow);
+        recomp_printf("remainder %d\n", overflow);
 
         HS_SET_BANK_RUPEES(HS_GET_BANK_RUPEES() + overflow);
-        //recomp_printf("bank amount %d\n", HIGH_SCORE(HS_BANK_RUPEES));
-        
-    if (HS_GET_BANK_RUPEES() > recomp_get_config_u32("bank_capacity")) {
-        HS_SET_BANK_RUPEES(recomp_get_config_u32("bank_capacity"));
-        }
+        recomp_printf("bank amount %d\n", HIGH_SCORE(HS_BANK_RUPEES));
     }
 }
+
 
 RECOMP_HOOK("Player_Update") 
 void onPlayer_Update(Player* this, PlayState* play) {
-    if (CHECK_BTN_ALL(play->state.input[0].cur.button, BTN_L | BTN_B) && (gSaveContext.save.saveInfo.playerData.rupees != CUR_CAPACITY(UPG_WALLET) && (HIGH_SCORE(HS_BANK_RUPEES) > 0))) {
+    if (CHECK_BTN_ALL(play->state.input[0].cur.button, BTN_L | BTN_B) &&
+        (gSaveContext.save.saveInfo.playerData.rupees != CUR_CAPACITY(UPG_WALLET) &&
+        (HIGH_SCORE(HS_BANK_RUPEES) > 0))
+    ) {
         gSaveContext.save.saveInfo.playerData.rupees++;
 
         HS_SET_BANK_RUPEES(HS_GET_BANK_RUPEES() - 1);
-        //recomp_printf("bank amount %d\n", HIGH_SCORE(HS_BANK_RUPEES));
+        recomp_printf("bank amount %d\n", HIGH_SCORE(HS_BANK_RUPEES));
     }
 
-    if (CHECK_BTN_ALL(play->state.input[0].cur.button, BTN_L | BTN_A) && (gSaveContext.save.saveInfo.playerData.rupees !=0)) {
+    if (CHECK_BTN_ALL(play->state.input[0].cur.button, BTN_L | BTN_A) &&
+        (gSaveContext.save.saveInfo.playerData.rupees !=0)
+    ) {
         gSaveContext.save.saveInfo.playerData.rupees--;
-
         HS_SET_BANK_RUPEES(HS_GET_BANK_RUPEES() + 1);
-        //recomp_printf("bank amount %d\n", HIGH_SCORE(HS_BANK_RUPEES));
-    }
+        recomp_printf("bank amount %d\n", HIGH_SCORE(HS_BANK_RUPEES));
 
-    if (CHECK_BTN_ALL(play->state.input[0].cur.button, BTN_L | BTN_R) && (gSaveContext.save.saveInfo.playerData.rupees != HIGH_SCORE(HS_BANK_RUPEES) > CUR_CAPACITY(UPG_WALLET)) &&
-        CHECK_WEEKEVENTREG(WEEKEVENTREG_59_40) && !CHECK_WEEKEVENTREG(WEEKEVENTREG_59_80) && HIGH_SCORE(HS_BANK_RUPEES) >= 200) {
-
-        HS_SET_BANK_RUPEES(190);
-        //recomp_printf("bank amount %d\n", HIGH_SCORE(HS_BANK_RUPEES));
-
-    }
-
-        else if (CHECK_BTN_ALL(play->state.input[0].cur.button, BTN_L | BTN_R) && (gSaveContext.save.saveInfo.playerData.rupees != HIGH_SCORE(HS_BANK_RUPEES) > CUR_CAPACITY(UPG_WALLET)) &&
-            CHECK_WEEKEVENTREG(WEEKEVENTREG_59_80) && !CHECK_WEEKEVENTREG(WEEKEVENTREG_60_01) && HIGH_SCORE(HS_BANK_RUPEES) >= 500) {
-
-            HS_SET_BANK_RUPEES(490);
-            //recomp_printf("bank amount %d\n", HIGH_SCORE(HS_BANK_RUPEES));
-
-        }
-
-        else if (CHECK_BTN_ALL(play->state.input[0].cur.button, BTN_L | BTN_R) && (gSaveContext.save.saveInfo.playerData.rupees != HIGH_SCORE(HS_BANK_RUPEES) > CUR_CAPACITY(UPG_WALLET)) &&
-            HIGH_SCORE(HS_BANK_RUPEES) >= 1000) {
-
-            HS_SET_BANK_RUPEES(990);
-            //recomp_printf("bank amount %d\n", HIGH_SCORE(HS_BANK_RUPEES));
-
-        }
-
-    //if (CHECK_BTN_ALL(play->state.input[0].cur.button, BTN_L | BTN_B | BTN_Z)) {
-
+    } //if (CHECK_BTN_ALL(play->state.input[0].cur.button, BTN_L | BTN_B | BTN_Z)) {
         //Rupees_ChangeBy(50);
-        //recomp_printf("debug pressed\n");
+        //recomp_printf("debug rupees added\n");
     //}
 
-    if ((HIGH_SCORE(HS_BANK_RUPEES) >= 200) && !CHECK_WEEKEVENTREG(WEEKEVENTREG_59_40) && !CHECK_WEEKEVENTREG(WEEKEVENTREG_59_80) && !CHECK_WEEKEVENTREG(WEEKEVENTREG_60_01)) {
+    //if (CHECK_BTN_ALL(play->state.input[0].cur.button, BTN_L | BTN_R | BTN_Z)) {
+        //HS_SET_BANK_RUPEES(0);
+        //recomp_printf("bank reset\n");
+    //}
+
+    if ((HIGH_SCORE(HS_BANK_RUPEES) >= 200) &&
+        (previousBankValue < 200) &&
+        !rando_location_is_checked_external(LOCATION_BANK_200_REWARD)
+    ) {
         SET_WEEKEVENTREG(WEEKEVENTREG_59_40);
-        Bankreward_Start(play);
+        Mobilebank_Start(play);
+
+    } else if ((HIGH_SCORE(HS_BANK_RUPEES) >= 500) &&
+        (previousBankValue < 500) &&
+        !rando_location_is_checked_external(LOCATION_BANK_500_REWARD)
+    ) {
+        SET_WEEKEVENTREG(WEEKEVENTREG_59_80);
+        Mobilebank_Start(play);
+
+    } else if ((HIGH_SCORE(HS_BANK_RUPEES) >= 1000) &&
+        (previousBankValue < 1000) &&
+        !rando_location_is_checked_external(LOCATION_BANK_1000_REWARD)
+    ) {
+        SET_WEEKEVENTREG(WEEKEVENTREG_60_01);
+        Mobilebank_Start(play);
     }
-
-        else if ((HIGH_SCORE(HS_BANK_RUPEES) >= 500) && !CHECK_WEEKEVENTREG(WEEKEVENTREG_59_80) && !CHECK_WEEKEVENTREG(WEEKEVENTREG_60_01)) {
-            SET_WEEKEVENTREG(WEEKEVENTREG_59_80);
-            Bankreward_Start(play);
-        }
-
-        else if ((HIGH_SCORE(HS_BANK_RUPEES) >= 1000) && !CHECK_WEEKEVENTREG(WEEKEVENTREG_60_01)) {
-            SET_WEEKEVENTREG(WEEKEVENTREG_60_01);
-            Bankreward_Start(play);
-        }
 }
 
-EZTR_MSG_CALLBACK(bankreward_callback) {
-    if ((HIGH_SCORE(HS_BANK_RUPEES) >= 200) && (HIGH_SCORE(HS_BANK_RUPEES) < 500))
-            EZTR_MsgSContent_Sprintf(buf->data.content, "" EZTR_CC_COLOR_BLUE "Hey! " EZTR_CC_COLOR_DEFAULT "You have a reward" EZTR_CC_NEWLINE 
-            "waiting for depositing " EZTR_CC_COLOR_PINK "200 rupees!" EZTR_CC_EVENT "" EZTR_CC_END
-        );
-        else if
-            ((HIGH_SCORE(HS_BANK_RUPEES) >= 500) && (HIGH_SCORE(HS_BANK_RUPEES) < 1000))
-            EZTR_MsgSContent_Sprintf(buf->data.content, "" EZTR_CC_COLOR_ORANGE "Amazing! " EZTR_CC_COLOR_DEFAULT "You have a reward" EZTR_CC_NEWLINE 
-            "waiting for depositing " EZTR_CC_COLOR_PINK "500 rupees!" EZTR_CC_EVENT "" EZTR_CC_END
-        );
-        else if
-            (HIGH_SCORE(HS_BANK_RUPEES) >= 1000)
-            EZTR_MsgSContent_Sprintf(buf->data.content, "" EZTR_CC_COLOR_RED "Sp" EZTR_CC_COLOR_ORANGE "ec" EZTR_CC_COLOR_YELLOW "ta" EZTR_CC_COLOR_GREEN "cu" EZTR_CC_COLOR_BLUE "lar" EZTR_CC_COLOR_DEFAULT "! You have a reward" EZTR_CC_NEWLINE 
-            "waiting for depositing " EZTR_CC_COLOR_PINK "1000 rupees!" EZTR_CC_EVENT "" EZTR_CC_END
-        );
+void OfferBankReward(EnElf* this, PlayState* play) {
+    if (Actor_HasParent(&this->actor, play)) {
+        this->actor.parent = NULL;
+        this->actionFunc = savedTatlActionFunc; // set actionFunc back to what it was before
+    } else if (!rando_location_is_checked_external(LOCATION_BANK_200_REWARD) &&
+            HIGH_SCORE(HS_BANK_RUPEES) >= 200) {
+        Actor_OfferGetItemHookExternal(&this->actor, play, rando_get_item_id_external(LOCATION_BANK_200_REWARD), LOCATION_BANK_200_REWARD, 500.0f, 100.0f, true, true);
+        HS_SET_BANK_RUPEES(199);
+    } else if (!rando_location_is_checked_external(LOCATION_BANK_500_REWARD) &&
+            HIGH_SCORE(HS_BANK_RUPEES) >= 500) {
+        Actor_OfferGetItemHookExternal(&this->actor, play, rando_get_item_id_external(LOCATION_BANK_500_REWARD), LOCATION_BANK_500_REWARD, 500.0f, 100.0f, true, true);
+        HS_SET_BANK_RUPEES(499);
+    } else if (!rando_location_is_checked_external(LOCATION_BANK_1000_REWARD) &&
+            HIGH_SCORE(HS_BANK_RUPEES) >= 1000){
+        Actor_OfferGetItemHookExternal(&this->actor, play, rando_get_item_id_external(LOCATION_BANK_1000_REWARD), LOCATION_BANK_1000_REWARD, 500.0f, 100.0f, true, true);
+        HS_SET_BANK_RUPEES(999);
+    }
 }
 
-EZTR_ON_INIT void init_bankreward() {
+EZTR_MSG_CALLBACK(mobilebank_callback) {
+    if ((HS_GET_BANK_RUPEES() >= 200) &&
+        (previousBankValue < 200)
+    ) {
+        EZTR_MsgSContent_Sprintf(buf->data.content, "" EZTR_CC_COLOR_BLUE "Hey! " EZTR_CC_COLOR_DEFAULT "You have a reward" EZTR_CC_NEWLINE 
+        "waiting for depositing " EZTR_CC_COLOR_PINK "200 rupees!" EZTR_CC_EVENT "" EZTR_CC_END);
+        //recomp_printf("bank amount %d\n", HIGH_SCORE(HS_BANK_RUPEES));
+        
+    } if ((HS_GET_BANK_RUPEES() >= 500) &&
+        (previousBankValue < 500)
+    ) {
+        EZTR_MsgSContent_Sprintf(buf->data.content, "" EZTR_CC_COLOR_ORANGE "Amazing! " EZTR_CC_COLOR_DEFAULT "You have a reward" EZTR_CC_NEWLINE 
+        "waiting for depositing " EZTR_CC_COLOR_PINK "500 rupees!" EZTR_CC_EVENT "" EZTR_CC_END);
+        //recomp_printf("bank amount %d\n", HIGH_SCORE(HS_BANK_RUPEES));
+
+    } if (HS_GET_BANK_RUPEES() >= 1000 &&
+        (previousBankValue < 1000)
+    ) {
+        EZTR_MsgSContent_Sprintf(buf->data.content, "" EZTR_CC_COLOR_RED "Sp" EZTR_CC_COLOR_ORANGE "ec" EZTR_CC_COLOR_YELLOW "ta" EZTR_CC_COLOR_GREEN "cu" EZTR_CC_COLOR_LIGHTBLUE "la" EZTR_CC_COLOR_BLUE "r!" EZTR_CC_COLOR_DEFAULT " You have a reward" EZTR_CC_NEWLINE 
+        "waiting for depositing " EZTR_CC_COLOR_PINK "1000 rupees!" EZTR_CC_EVENT "" EZTR_CC_END);
+        //recomp_printf("bank amount %d\n", HIGH_SCORE(HS_BANK_RUPEES));
+    }
+}
+
+EZTR_ON_INIT void init_Mobilebank() {
     EZTR_Basic_AddCustomText(
-        EZTR_HNAME(bankreward),
+        EZTR_HNAME(mobilebank),
         EZTR_STANDARD_TEXT_BOX_I,
         1,
         EZTR_ICON_NO_ICON,
@@ -178,7 +202,7 @@ EZTR_ON_INIT void init_bankreward() {
         EZTR_NO_VALUE,
         false,
         EZTR_CC_END,
-        bankreward_callback
+        mobilebank_callback
     );
         // First visit to bank
     EZTR_Basic_ReplaceText(
@@ -203,7 +227,7 @@ EZTR_ON_INIT void init_bankreward() {
         EZTR_NO_VALUE,
         EZTR_NO_VALUE,
         true,
-        "For example, if you deposit" EZTR_CC_NEWLINE "" EZTR_CC_COLOR_PINK "200 Rupees" EZTR_CC_COLOR_DEFAULT ", we will upgrade your wallet!" EZTR_CC_EVENT "" EZTR_CC_END "",
+        "For example, if you deposit" EZTR_CC_NEWLINE "" EZTR_CC_COLOR_PINK "200 Rupees" EZTR_CC_COLOR_DEFAULT " we will upgrade" EZTR_CC_NEWLINE "your wallet!" EZTR_CC_EVENT "" EZTR_CC_END "",
         NULL
     );
     // First-time request
@@ -359,7 +383,7 @@ EZTR_ON_INIT void init_bankreward() {
         EZTR_NO_VALUE,
         EZTR_NO_VALUE,
         true,
-        "" EZTR_CC_QUICKTEXT_ENABLE "" EZTR_CC_COLOR_RED "1" EZTR_CC_COLOR_BLUE "0" EZTR_CC_COLOR_YELLOW "0" EZTR_CC_COLOR_GREEN "0" EZTR_CC_COLOR_PINK "Rupees!?!" EZTR_CC_COLOR_DEFAULT "" EZTR_CC_QUICKTEXT_DISABLE "" EZTR_CC_NEWLINE "" EZTR_CC_CARRIAGE_RETURN "" EZTR_CC_BOX_BREAK2 "Talk about being a loyal" EZTR_CC_NEWLINE "customer! Please accept this gift, it's" EZTR_CC_NEWLINE "all I have left to offer." EZTR_CC_EVENT2 "" EZTR_CC_END "",
+        "" EZTR_CC_QUICKTEXT_ENABLE "" EZTR_CC_COLOR_RED "1" EZTR_CC_COLOR_ORANGE "0" EZTR_CC_COLOR_YELLOW "0" EZTR_CC_COLOR_GREEN "0" EZTR_CC_COLOR_LIGHTBLUE "Rup" EZTR_CC_COLOR_BLUE "ees!?!" EZTR_CC_COLOR_DEFAULT "" EZTR_CC_QUICKTEXT_DISABLE "" EZTR_CC_NEWLINE "" EZTR_CC_CARRIAGE_RETURN "" EZTR_CC_BOX_BREAK2 "Talk about being a loyal" EZTR_CC_NEWLINE "customer! Please accept this gift, it's" EZTR_CC_NEWLINE "all I have left to offer." EZTR_CC_EVENT2 "" EZTR_CC_END "",
         NULL
     );
     // Bank capped message, converted to goodbye
