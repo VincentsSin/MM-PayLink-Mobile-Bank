@@ -8,7 +8,7 @@
 id = "paylink_mobile_bank"
 
 # Version of this mod.
-version = "1.3.0"
+version = "1.4.0"
 
 # The name that will show up for this mod in the mod menu. This should be human readable.
 display_name = "PayLink Mobile Bank"
@@ -18,13 +18,14 @@ description =  """Mod to send wallet overflow to the bank without needing to ret
 to Clock Town. Additionally, send to and retrieve from the bank
 anywhere in Termina!
 
-Remote Bank Inputs:
-- L+A to deposit
-- L+B to withdraw
-
-Tatl will alert when you have reached a deposit reward. Checking
-the notification will send what you would have received from
-the banker in Clock Town."""
+Features:
+- Hold L+A to deposit
+- Hold L+B to withdraw
+- Press L+R to check balance
+- Tatl will notify when you deposit enough for a reward.
+- Reading Tatl's notification will send the relative reward.
+- Configuration option to adjust the bank capacity up to 9999.
+"""
 
 # A short description that will show up in this mod's entry in the mod list. This should be human readable and kept short
 # to prevent it from being cut off due to the limited space.
@@ -66,13 +67,13 @@ data_reference_syms_files = [ "Zelda64RecompSyms/mm.us.rev1.datasyms.toml", "Zel
 # Additional files to include in the mod.
 additional_files = [ "thumb.dds" ]
 
-# [[manifest.config_options]]
+[[manifest.config_options]]
 id = "bank_capacity"
 name = "Bank Maximum Storage"
 description = "Modify the bank's max capacity."
 type = "Number"
 min = 1000
-max = 5000
+max = 9999
 step = 1
 precision = 1
 percent = false
