@@ -287,7 +287,7 @@ EZTR_ON_INIT void init_Mobilebank() {
         EZTR_NO_VALUE,
         EZTR_NO_VALUE,
         true,
-        "Welcome, friend." EZTR_CC_NEWLINE "Have too many" EZTR_CC_COLOR_PINK "Rupees" EZTR_CC_COLOR_DEFAULT "on hand?" EZTR_CC_NEWLINE "" EZTR_CC_CARRIAGE_RETURN "" EZTR_CC_BOX_BREAK2 "Then let 'First and Last Bank" EZTR_CC_NEWLINE "of Termina' take care of your needs!" EZTR_CC_NEWLINE "" EZTR_CC_BOX_BREAK2 "As a bonus for opening an account," EZTR_CC_NEWLINE "you will be rewarded the" EZTR_CC_NEWLINE "more you deposit!" EZTR_CC_EVENT "" EZTR_CC_END "",
+        "Welcome, friend." EZTR_CC_NEWLINE "Have too many " EZTR_CC_COLOR_PINK "Rupees" EZTR_CC_COLOR_DEFAULT " on hand?" EZTR_CC_NEWLINE "" EZTR_CC_CARRIAGE_RETURN "" EZTR_CC_BOX_BREAK2 "Then let 'First and Last Bank" EZTR_CC_NEWLINE "of Termina' take care of your needs!" EZTR_CC_NEWLINE "" EZTR_CC_BOX_BREAK2 "As a bonus for opening an account," EZTR_CC_NEWLINE "you will be rewarded the" EZTR_CC_NEWLINE "more you deposit!" EZTR_CC_EVENT "" EZTR_CC_END "",
         NULL
     );
     // Deposit reward example
@@ -707,3 +707,4 @@ EZTR_ON_INIT void init_Mobilebank() {
         NULL
     );
 }
+
