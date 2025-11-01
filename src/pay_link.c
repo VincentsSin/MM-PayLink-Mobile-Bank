@@ -54,7 +54,7 @@ void Mobilebank_Start(PlayState* play) {
     ) return;
 
     isMobilebank = true;
-    mobilebankTimer = (20 * 2); // Stays for 1 seconds
+    mobilebankTimer = (20 * 2); // Stays for 2 seconds
     lastFrameMobilebank = false;
 }
 
@@ -69,7 +69,7 @@ void Mobileupdate_Start(PlayState* play) {
     ) return;
 
     isMobileupdate = true;
-    mobileupdateTimer = (20 * 5); // Stays for 10 seconds
+    mobileupdateTimer = (20 * 5); // Stays for 5 seconds
     lastFrameMobileupdate = false;
 }
 
@@ -707,4 +707,5 @@ EZTR_ON_INIT void init_Mobilebank() {
         NULL
     );
 }
+
 
