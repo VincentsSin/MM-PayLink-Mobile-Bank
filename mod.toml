@@ -15,16 +15,17 @@ display_name = "PayLink Mobile Bank"
 
 # The description that will show up when this mod is displayed in the mod menu. This should be human readable.
 description =  """Mod to send wallet overflow to the bank without needing to return
-to Clock Town. Additionally, send to and retrieve from the bank
-anywhere in Termina!
+to Clock Town. Additionally, send and retrieve rupees from the bank anywhere in Termina!
 
 Features:
 - Hold L+A to deposit
 - Hold L+B to withdraw
-- Press L+R to check balance
+- Press L+R to check balance w/ Tatl
 - Tatl will notify when you deposit enough for a reward.
 - Reading Tatl's notification will send the relative reward.
-- Configuration option to adjust the bank capacity up to 9999.
+- Supports vanilla and randomizer playthrough.
+
+KNOWN ISSUE: Bank capacity currently has no limit with this mod enabled; will show glitched text when checking balance over 9999.
 """
 
 # A short description that will show up in this mod's entry in the mod list. This should be human readable and kept short
@@ -38,11 +39,18 @@ authors = [ "Vincent'sSin" ]
 game_id = "mm"
 
 # Minimum version of the target recomp (e.g. Zelda 64: Recompiled) that this mod can run on.
-minimum_recomp_version = "1.2.0"
+minimum_recomp_version = "1.2.2"
 
 # Dependency mods. Each entry is the mod's ID and then an optional minimum version of the dependency mod.
 dependencies = [
-    "MM_EZ_Text_Replacer_API:2.0.0", "mm_recomp_rando:0.9.4"
+    "MM_EZ_Text_Replacer_API:2.0.0"
+]
+
+# Optional dependency mods. This has the same format as `dependencies`, but the game will still start if dependencies in this
+# list aren't present. You can query the presence of a given dependency by using `recomp_is_dependency_met` in recomputils.h.
+# Calling a function imported from an optional dependency that isn't present will trigger an error.
+optional_dependencies = [
+    "mm_recomp_rando:0.9.5"
 ]
 
 # Native libraries (e.g. DLLs) and the functions they export.
@@ -67,15 +75,15 @@ data_reference_syms_files = [ "Zelda64RecompSyms/mm.us.rev1.datasyms.toml", "Zel
 # Additional files to include in the mod.
 additional_files = [ "thumb.dds" ]
 
-[[manifest.config_options]]
-id = "bank_capacity"
-name = "Bank Maximum Storage"
-description = "Modify the bank's max capacity."
-type = "Number"
-min = 1000
-max = 9999
-step = 1
-precision = 1
-percent = false
-default = 1
+# [[manifest.config_options]]
+# id = "bank_capacity"
+# name = "Bank Maximum Storage"
+# description = "Modify the bank's max capacity."
+# type = "Number"
+# min = 5000
+# max = 9999
+# step = 1
+# precision = 1
+# percent = false
+# default = 1
 
